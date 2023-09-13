@@ -1,0 +1,2 @@
+torch==2.0.1
+torchtyping==0.1.4
