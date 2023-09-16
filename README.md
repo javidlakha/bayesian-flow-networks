@@ -39,3 +39,4 @@ each element's probability distribution to account for the other elements.
 # Other implementations
 
 * [Bayesian-Flow-Networks](https://github.com/Algomancer/Bayesian-Flow-Networks)
+* [bayesian-flow-pytorch](https://github.com/thorinf/bayesian-flow-pytorch)
