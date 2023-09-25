@@ -135,6 +135,9 @@ class DiscreteBFN(BFN):
 
         Implements Algorithm 9 in the Bayesian Flow Networks paper.
         """
+        previous_mode = self.net.training
+        self.net.eval()
+
         # Use a uniform prior. The network will learn the empirical prior of
         # the training set and use that to correct its predictions
         prior = (1/self.vocab_size) * torch.ones((
@@ -173,5 +176,7 @@ class DiscreteBFN(BFN):
         t = torch.ones(batch_size, device=device)
         element_probs = self.output_distribution(prior, t)
         sample = torch.distributions.Categorical(element_probs).sample()
+
+        self.net.training = previous_mode
 
         return sample
