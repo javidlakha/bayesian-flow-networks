@@ -1,3 +1,5 @@
+from typing import Optional
+
 import torch
 import torch.nn.functional as F
 from torchtyping import TensorType
@@ -36,6 +38,7 @@ class DiscreteBFN(BFN):
         self,
         input_distribution: TensorType['batch', 'sequence', 'vocab'],
         t: TensorType['batch'],
+        context: Optional[TensorType['batch', 'context']] = None,
     ) -> TensorType['batch', 'sequence', 'vocab']:
         """
         Computes the joint probability distribution of a sequence, given the
@@ -57,12 +60,13 @@ class DiscreteBFN(BFN):
         Based on the Discrete Output Distribution subroutine of Algorithm 8 in
         the Bayesian Flow Networks paper.
         """
-        output_distribution = self.net(input_distribution, t)
+        output_distribution = self.net(input_distribution, t, context=context)
         return F.softmax(output_distribution, dim=-1)
 
     def continuous_time_loss(
         self,
         x: TensorType['batch', 'sequence'],
+        context: Optional[TensorType['batch', 'context']] = None,
     ) -> torch.float32:
         """
         Computes the continuous time loss for a batch of training data.
@@ -107,19 +111,19 @@ class DiscreteBFN(BFN):
         mean = accuracy[:, None, None] * (self.vocab_size * x - 1)
         std_dev = (accuracy * self.vocab_size)[:, None, None].sqrt()
         y = mean + std_dev * torch.randn_like(mean)
-        input_distribution = F.softmax(y, dim=-1)
+        in_dist = F.softmax(y, dim=-1)
 
         # Model the 'output distribution' - i.e. the joint multinomial class
         # probabilities for the sequence, computed without assuming that each
         # element is independent
-        output_distribution = self.output_distribution(input_distribution, t)
+        out_dist = self.output_distribution(in_dist, t, context)
 
         # Compute the loss between the output distribution and the ground truth
         # (The derivation of the loss function is outlined in Sections 6.10 -
         # 6.12)
         loss = (
             self.vocab_size * self.beta * t[:, None, None]
-            * (x - output_distribution)**2
+            * (x - out_dist)**2
         )
         return loss.mean()
 
@@ -129,6 +133,7 @@ class DiscreteBFN(BFN):
         batch_size: int,
         steps: int,
         device: torch.device,
+        context: Optional[TensorType['batch', 'context']] = None,
     ) -> TensorType['batch', 'sequence']:
         """
         Generates a batch of data.
@@ -151,7 +156,7 @@ class DiscreteBFN(BFN):
             # on the (unrealistic) assumption that each element in the sequence
             # is independent
             t = (step/steps) * torch.ones(batch_size, device=device)
-            element_probs = self.output_distribution(prior, t)
+            element_probs = self.output_distribution(prior, t, context)
 
             # Sample from the computed distribution and use this to update the
             # prior class probabilities for each element in the sequence. This
@@ -174,7 +179,7 @@ class DiscreteBFN(BFN):
             prior = posterior
 
         t = torch.ones(batch_size, device=device)
-        element_probs = self.output_distribution(prior, t)
+        element_probs = self.output_distribution(prior, t, context)
         sample = torch.distributions.Categorical(element_probs).sample()
 
         self.net.training = previous_mode

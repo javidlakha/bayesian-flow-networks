@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -16,6 +17,7 @@ class BFN(nn.Module, ABC):
         self,
         input_distribution: TensorType['batch', 'sequence', 'vocab'],
         t: TensorType['batch'],
+        context: Optional[TensorType['batch', 'context']] = None,
     ) -> TensorType['batch', 'sequence', 'vocab']:
         """
         Computes the joint probability distribution of a sequence, given the
@@ -28,6 +30,7 @@ class BFN(nn.Module, ABC):
     def continuous_time_loss(
         self,
         x: TensorType['batch', 'sequence'],
+        context: Optional[TensorType['batch', 'context']] = None,
     ) -> torch.float32:
         """Computes the continuous time loss for a batch of training data."""
         pass
@@ -38,6 +41,7 @@ class BFN(nn.Module, ABC):
         batch_size: int,
         steps: int,
         device: torch.device,
+        context: Optional[TensorType['batch', 'context']] = None,
     ) -> TensorType['batch', 'sequence']:
         """Generates a batch of data."""
         pass
