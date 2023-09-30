@@ -4,11 +4,6 @@ A Python implementation of the
 
 # Overview
 
-_Disclaimer: The paper is hard to read - in particular, the message compression
-formulation obscures more than it illuminates. Therefore, it is possible that I
-have misunderstood it. Please send corrections to
-[hi@javid.io](mailto:hi@javid.io)._
-
 The motivation for the paper is that autoregressive models are inefficient,
 because generating a sequence of $T$ elements requires $T$ inference steps. In
 a diffusion model, the sequence can be generated using $D$ denoising steps, and
@@ -35,8 +30,3 @@ Unfortunately, the elements are not independent, and so the relationship
 between them must also be modelled. This is done by training a neural network
 which, at each iteration in the generative process, modifies the parameters of
 each element's probability distribution to account for the other elements.
-
-# Other implementations
-
-* [Bayesian-Flow-Networks](https://github.com/Algomancer/Bayesian-Flow-Networks)
-* [bayesian-flow-pytorch](https://github.com/thorinf/bayesian-flow-pytorch)
