@@ -27,11 +27,6 @@ class DiscreteBFN(BFN):
         self.beta = beta
         self.sequence_len = sequence_len
         self.vocab_size = vocab_size
-
-        # Should map
-        #   sequence_len * vocab_size + 1  (input; the +1 is for the timestep)
-        # to
-        #   sequence_len * vocab_size      (output)
         self.net = net
 
     def output_distribution(
@@ -111,19 +106,21 @@ class DiscreteBFN(BFN):
         mean = accuracy[:, None, None] * (self.vocab_size * x - 1)
         std_dev = (accuracy * self.vocab_size)[:, None, None].sqrt()
         y = mean + std_dev * torch.randn_like(mean)
-        in_dist = F.softmax(y, dim=-1)
+        input_distribution = F.softmax(y, dim=-1)
 
         # Model the 'output distribution' - i.e. the joint multinomial class
         # probabilities for the sequence, computed without assuming that each
         # element is independent
-        out_dist = self.output_distribution(in_dist, t, context)
+        output_distribution = self.output_distribution(
+            input_distribution, t, context
+        )
 
         # Compute the loss between the output distribution and the ground truth
         # (The derivation of the loss function is outlined in Sections 6.10 -
         # 6.12)
         loss = (
-            self.vocab_size * self.beta * t[:, None, None]
-            * (x - out_dist)**2
+            self.vocab_size * self.beta * t[:, None, None] *
+            (x - output_distribution)**2
         )
         return loss.mean()
 
@@ -149,7 +146,7 @@ class DiscreteBFN(BFN):
             batch_size, self.sequence_len, self.vocab_size
         ), device=device)
 
-        for step in range(steps):
+        for step in range(1, steps):
             # Compute the joint probability distribution for each element in
             # the sequence. This is done using a learned neural network that
             # corrects the prior class probabilities, which were computed based
