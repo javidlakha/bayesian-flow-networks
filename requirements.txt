@@ -1,2 +1,6 @@
 torch==2.0.1
 torchtyping==0.1.4
+
+# Only required for example notebooks
+matplotlib==3.7.3
+tqdm==4.66.1
