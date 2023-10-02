@@ -18,22 +18,26 @@ class ContinuousBFN(BFN):
 
     def __init__(
         self,
+        channels: int,
         sequence_len: int,
         net: torch.nn,
         sigma: float = 0.001,
     ) -> None:
         super().__init__()
-        self.sigma = sigma
+        self.channels = channels
         self.sequence_len = sequence_len
         self.net = net
+        self.sigma = sigma
 
     def output_distribution(
         self,
-        input_distribution: TensorType['batch', 'sequence'],
+        input_distribution: TensorType['batch', 'channel', 'sequence'],
         t: TensorType['batch'],
         accuracy: TensorType['batch'],
         context: Optional[TensorType['batch', 'context']] = None,
-    ) -> TensorType['batch', 'sequence']:
+        minimum: Optional[float] = None,
+        maximum: Optional[float] = None,
+    ) -> TensorType['batch', 'channel', 'sequence']:
         """
         Computes the joint probability distribution of a sequence, given the
         probability distributions of each element in the sequence, the accuracy
@@ -54,15 +58,20 @@ class ContinuousBFN(BFN):
         Based on the Continuous Output Prediction subroutine of Algorithm 2 in
         the Bayesian Flow Networks paper.
         """
-        return (
-            (input_distribution/accuracy[:, None]) -
-            ((1-accuracy)/accuracy)[:, None].sqrt() *
+        output_distribution = (
+            (input_distribution/accuracy[:, None, None]) -
+            ((1-accuracy)/accuracy)[:, None, None].sqrt() *
             self.net(input_distribution, t, context=context)
         )
 
+        if minimum or maximum:
+            output_distribution = output_distribution.clamp(minimum, maximum)
+
+        return output_distribution
+
     def continuous_time_loss(
         self,
-        x: TensorType['batch', 'sequence'],
+        x: TensorType['batch', 'channel', 'sequence'],
         context: Optional[TensorType['batch', 'context']] = None,
         t_min: float = 1e-6,
     ) -> torch.float32:
@@ -83,7 +92,8 @@ class ContinuousBFN(BFN):
 
         Based on Algorithm 2 in the Bayesian Flow Networks paper.
         """
-        batch_size, sequence_len = x.shape
+        batch_size, channels, sequence_len = x.shape
+        assert channels == self.channels
         assert sequence_len == self.sequence_len
 
         # Sample t (the normalised time step) uniformly at random from the
@@ -106,8 +116,8 @@ class ContinuousBFN(BFN):
         # This is used to model the 'input distribution' - i.e. the mean and
         # variance at each sequence position, computed on the basis that each
         # element in the sequence is independent
-        mean = accuracy[:, None] * x
-        std_dev = (accuracy * (1 - accuracy)).sqrt()[:, None]
+        mean = accuracy[:, None, None] * x
+        std_dev = (accuracy * (1 - accuracy)).sqrt()[:, None, None]
         input_distribution = mean + std_dev * torch.randn_like(mean)
 
         # Model the 'output distribution' - i.e. the joint means and variances
@@ -121,7 +131,7 @@ class ContinuousBFN(BFN):
         # (The derivation of the loss function is outlined in Sections 4.10 -
         # 4.12)
         loss = (
-            (-math.log(self.sigma) * (self.sigma ** (-2 * t)))[:, None] *
+            (-math.log(self.sigma) * (self.sigma ** (-2 * t)))[:, None, None] *
             (x - output_distribution)**2
         )
         return loss.mean()
@@ -145,8 +155,9 @@ class ContinuousBFN(BFN):
         # Use a standard normal distribution as the prior. The network will
         # learn the empirical prior of the training set and use that to correct
         # its predictions
-        mean = torch.zeros((batch_size, self.sequence_len), device=device)
-        variance = torch.ones((batch_size, self.sequence_len), device=device)
+        dimensions = (batch_size, self.channels, self.sequence_len)
+        mean = torch.zeros(dimensions, device=device)
+        variance = torch.ones(dimensions, device=device)
 
         for step in range(1, steps):
             # Compute the joint probability distribution for each element in
