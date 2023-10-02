@@ -74,6 +74,8 @@ class ContinuousBFN(BFN):
         x: TensorType['batch', 'channel', 'sequence'],
         context: Optional[TensorType['batch', 'context']] = None,
         t_min: float = 1e-6,
+        minimum: Optional[float] = None,
+        maximum: Optional[float] = None,
     ) -> torch.float32:
         """
         Computes the continuous time loss for a batch of training data.
@@ -124,7 +126,7 @@ class ContinuousBFN(BFN):
         # for the sequence, computed without assuming that each element is
         # independent
         output_distribution = self.output_distribution(
-            input_distribution, t, accuracy, context
+            input_distribution, t, accuracy, context, minimum, maximum
         )
 
         # Compute the loss between the output distribution and the ground truth
@@ -143,6 +145,8 @@ class ContinuousBFN(BFN):
         steps: int,
         device: torch.device,
         context: Optional[TensorType['batch', 'context']] = None,
+        minimum: Optional[float] = None,
+        maximum: Optional[float] = None,
     ) -> TensorType['batch', 'sequence']:
         """
         Generates a batch of data.
@@ -172,6 +176,8 @@ class ContinuousBFN(BFN):
                 t,
                 accuracy,
                 context,
+                minimum,
+                maximum,
             )
 
             # Sample from the computed distribution and use this to update the
@@ -192,7 +198,14 @@ class ContinuousBFN(BFN):
 
         t = torch.ones(batch_size, device=device)
         accuracy = 1 - self.sigma ** (2*t)
-        sample = self.output_distribution(mean, t, accuracy, context)
+        sample = self.output_distribution(
+            mean,
+            t,
+            accuracy,
+            context,
+            minimum,
+            maximum,
+        )
 
         self.net.training = previous_mode
 
